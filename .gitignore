@@ -2,3 +2,6 @@
 /Release/
 /.settings/
 /include/mavlink/
+/Debug-armv6/
+/Debug-x86_64/
+/Release-armv6/
