@@ -64,12 +64,16 @@ namespace rscs { namespace gcs
 
             ("config-file", po::value(&_cfg_file_path),
                 "config file path")
+
+            ("report-delay", po::value(&report_delay_ms)->default_value(5000),
+                    "delay between reports")
         ;
 
-
         _network_opts.add_options()
-            ("target-host", po::value(&net.target_host)->required(), "target host to send data")
-            ("target-port", po::value(&net.target_port)->required(), "target port to send data")
+            ("target-host", po::value(&net.target_host)->default_value(""), "target host to send data")
+            ("target-port", po::value(&net.target_port)->default_value(0), "target port to send data")
+            ("uplink-listen", po::value(&net.uplink_listen)->default_value(true),
+                    "listen to uplink commanands")
         ;
 
 

@@ -32,20 +32,12 @@
 #include "sh_mutex.hpp"
 
 
-
-//TODO вынести в что-нибудь общее
-#define NRF_CHANNEL     0x59
-#define ADDR_ONBOARD    0xB0AFDB0AFD
-#define ADDR_GCS        0x57A7104313
-
-
 using namespace rscs::gcs;
 
 auto _slg = make_logger("main");
 
 
-
-void do_receive(boost::asio::ip::udp::socket & socket, std::vector<uint8_t> & buffer, bool & stop_flag,
+void do_receive(boost::asio::ip::udp::socket & socket, std::vector<uint8_t> & buffer,
         std::function<void(std::vector<uint8_t> & )> on_receive)
 {
     using namespace boost;
@@ -62,14 +54,14 @@ void do_receive(boost::asio::ip::udp::socket & socket, std::vector<uint8_t> & bu
         else if (err)
         {
             LOG_ERROR << "socket receive error :" << err << " : " << err.message();
-            do_receive(socket, buffer, stop_flag, on_receive);
+            do_receive(socket, buffer, on_receive);
             return;
         }
 
         LOG_TRACE << "got udp packet. size = " << received;
         buffer.resize(received);
         on_receive(buffer);
-        do_receive(socket, buffer, stop_flag, on_receive);
+        do_receive(socket, buffer, on_receive);
     });
 }
 
@@ -144,6 +136,7 @@ int main(int argc, const char ** argv)
         //radio->openReadingPipe(1, 0xBBBBBBBBBB);
         radio->openWritingPipe(c.rf.write_pipe);
         radio->openReadingPipe(0, c.rf.read_pipe);
+        radio->openReadingPipe(1, c.rf.write_pipe);
 
         radio->startListening();
 
@@ -197,31 +190,48 @@ int main(int argc, const char ** argv)
     typedef asio::ip::udp::socket socket_t;
     typedef asio::ip::udp::resolver resolver_t;
 
+    bool has_network = !c.net.target_host.empty();
     asio::io_service io;
     socket_t socket(io);
     std::vector<uint8_t> socket_rx_buffer;
     std::deque<uint8_t> uplink_queue;
     bool io_stop_flag = false;
+    auto rcv_handler = [&](std::vector<uint8_t> & buffer){
+        std::copy(buffer.begin(), buffer.end(), std::back_inserter(uplink_queue));
+    };
 
-    try {
-        std::string host = c.net.target_host;
-        std::string port = std::to_string(c.net.target_port);
-        LOG_INFO << "target-host: " << host << ", target-port: " << port;
+    if (has_network)
+    {
 
-        resolver_t resolver(io);
-        resolver_t::query query(asio::ip::udp::v4(), host, port, asio::ip::udp::resolver::query::numeric_service);
-        asio::ip::udp::endpoint target_endpoint = *resolver.resolve(query);
-        socket.connect(target_endpoint);
+        try {
+            std::string host = c.net.target_host;
+            std::string port = std::to_string(c.net.target_port);
+            LOG_INFO << "target-host: " << host << ", target-port: " << port;
 
-        do_receive(socket, socket_rx_buffer, io_stop_flag, [&](std::vector<uint8_t> & buffer){
-            std::copy(buffer.begin(), buffer.end(), std::back_inserter(uplink_queue));
-        });
+            resolver_t resolver(io);
+            resolver_t::query query(asio::ip::udp::v4(), host, port, asio::ip::udp::resolver::query::numeric_service);
+            asio::ip::udp::endpoint target_endpoint = *resolver.resolve(query);
+            socket.connect(target_endpoint);
+
+            if (c.net.uplink_listen)
+            {
+                do_receive(socket, socket_rx_buffer, rcv_handler);
+                LOG_INFO << "listening for uplink data because config said so";
+            }
+            else
+            {
+                LOG_INFO << "uplink data ignored, because config said so";
+            }
+        }
+        catch (std::exception & e) {
+            std::cout << "ERROR: " << e.what() << std::endl;
+            return EXIT_FAILURE;
+        }
     }
-    catch (std::exception & e) {
-        std::cout << "ERROR: " << e.what() << std::endl;
-        return EXIT_FAILURE;
+    else
+    {
+        LOG_INFO << "no network used since host is not setted up";
     }
-
 
 
     // ====================================================================================================
@@ -259,14 +269,13 @@ int main(int argc, const char ** argv)
     auto last_report_timepoint = clock_t::now();
 
     try
-        {
+    {
 
         size_t ack_payloads_availible = 3; // можно класть не больше чем столькоs
+        uint8_t rx_pipeno;
         while(!io_stop_flag) {
-
             {
                 // процессим радио
-                uint8_t rx_pipeno;
                 uint8_t downlink_buffer[32];
 
                 std::unique_lock<sh_mutex> lock(mtx);
@@ -275,11 +284,12 @@ int main(int argc, const char ** argv)
                     radio->read(downlink_buffer, len);
                     lock.unlock(); // чтобы не держать слишком долгоs
 
-                    //LOG_TRACE << "got packet. pipeno = " << (int)rx_pipeno << " len = " << len;
+                    LOG_TRACE << "got packet. pipeno = " << (int)rx_pipeno << " len = " << len;
 
-                    binlog_uplink.write((char*)downlink_buffer, len);
-                    binlog_uplink.flush();
-                    socket.send(asio::buffer(downlink_buffer, len));
+                    binlog_downlink.write((char*)downlink_buffer, len);
+                    binlog_downlink.flush();
+                    if (has_network)
+                        socket.send(asio::buffer(downlink_buffer, len));
 
                     // мы получили пакет, значит пайлоад ушел с ним. отражаем в счетчике
                     if (ack_payloads_availible++ > 3)
@@ -289,7 +299,7 @@ int main(int argc, const char ** argv)
                 }
             }
 
-            // процессим сеть
+            // процессим сеть (если есть) и сигналы
             io.poll();
 
             // если что-то получен, то оно появится в uplink очереди
@@ -302,10 +312,9 @@ int main(int argc, const char ** argv)
                 std::copy(uplink_queue.begin(), copy_end, std::begin(uplink_buffer));
                 uplink_queue.erase(uplink_queue.begin(), copy_end);
 
-
                 {
                     std::unique_lock<sh_mutex> lock(mtx);
-                    radio->writeAckPayload(c.rf.read_pipe, uplink_buffer, len);
+                    radio->writeAckPayload(rx_pipeno, uplink_buffer, len);
                 }
                 // теперь пайлоадов можно класть меньше
                 ack_payloads_availible--;
@@ -313,13 +322,12 @@ int main(int argc, const char ** argv)
                 binlog_uplink.write((char*)uplink_buffer, len);
 
                 LOG_TRACE << "placed ack payload of size = " << len;
-
                 uplink_bytes_counter += len;
             }
 
 
             auto now = clock_t::now();
-            if (now - last_report_timepoint >= std::chrono::seconds(5))
+            if (now - last_report_timepoint >= std::chrono::milliseconds(c.report_delay_ms))
             {
                 LOG_INFO << "uplink bytes counter: " << uplink_bytes_counter;
                 LOG_INFO << "downlink bytes counter: " << downlink_bytes_counter;

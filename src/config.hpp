@@ -43,6 +43,7 @@ namespace rscs { namespace gcs
         {
             std::string target_host;
             uint32_t target_port;
+            bool uplink_listen;
         };
 
 
@@ -56,6 +57,7 @@ namespace rscs { namespace gcs
         network_config net;
         rf_module_config rf;
         log_config log;
+        int64_t report_delay_ms;
 
         config();
         void load(int argc, const char ** argv);
