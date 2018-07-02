@@ -64,9 +64,6 @@ namespace rscs { namespace gcs
 
             ("config-file", po::value(&_cfg_file_path),
                 "config file path")
-
-            ("report-delay", po::value(&report_delay_ms)->default_value(5000),
-                    "delay between reports")
         ;
 
         _network_opts.add_options()
@@ -78,6 +75,7 @@ namespace rscs { namespace gcs
 
 
         _log_opts.add_options()
+            ("report-delay", po::value(&report_delay_ms)->default_value(5000), "delay between reports (in ms)")
             ("data-log-dir", po::value(&log.data_log_dir)->default_value("datalog"), "catalogue to store data log files")
             ("data-log-prefix", po::value(&log.data_log_prefix),
                     "prefix for data log file names. Useful to distinguish different users")

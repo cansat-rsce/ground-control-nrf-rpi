@@ -104,6 +104,8 @@ namespace rscs { namespace gcs {
             value = rscs::gcs::rf24_module_id_t::FIRST;
         else if ("SECOND" == value_str)
             value = rscs::gcs::rf24_module_id_t::SECOND;
+        else if ("UNISAT_DEV" == value_str)
+            value = rscs::gcs::rf24_module_id_t::UNISAT_DEV;
         else
             throw std::invalid_argument("invalid rf24 module id. Allowed values: FIRST, SECOND");
 
@@ -120,6 +122,9 @@ namespace rscs { namespace gcs {
             break;
         case rscs::gcs::rf24_module_id_t::SECOND:
             stream << "SECOND";
+            break;
+        case rscs::gcs::rf24_module_id_t::UNISAT_DEV:
+            stream << "UNISAT_DEV";
             break;
         default:
             stream << "INVALID(" << (int)value << ")";

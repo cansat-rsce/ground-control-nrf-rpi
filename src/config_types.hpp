@@ -63,7 +63,7 @@ namespace rscs { namespace gcs
     class rf24_module_id_t
     {
     public:
-        enum Value { FIRST, SECOND };
+        enum Value { FIRST, SECOND, UNISAT_DEV };
 
         rf24_module_id_t(): value() {}
         rf24_module_id_t(const Value & value_): value(value_) {}

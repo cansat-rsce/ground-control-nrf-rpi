@@ -113,6 +113,8 @@ int main(int argc, const char ** argv)
             radio.reset(new RF24(24, BCM2835_SPI_CS1));
         else if (c.rf.module_id == rf24_module_id_t::SECOND)
             radio.reset(new RF24(22, BCM2835_SPI_CS2));
+        else if (c.rf.module_id == rf24_module_id_t::UNISAT_DEV)
+            radio.reset(new RF24(22, BCM2835_SPI_CS0));
         else
             throw std::invalid_argument("invalid rf24 module id? its impasiburu!!1");
 

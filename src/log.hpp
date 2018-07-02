@@ -30,7 +30,7 @@ namespace rscs { namespace gcs {
     };
 
     std::ostream& operator<< (std::ostream& strm, const severity_level & level);
-    std::istream & operator>>(std::istream & strm, severity_level & level);
+    std::istream & operator>> (std::istream & strm, severity_level & level);
 }}
 
 
