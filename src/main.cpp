@@ -37,8 +37,9 @@ using namespace rscs::gcs;
 auto _slg = make_logger("main");
 
 
-void do_receive(boost::asio::ip::udp::socket & socket, std::vector<uint8_t> & buffer,
-        std::function<void(std::vector<uint8_t> & )> on_receive)
+typedef std::function<void(std::vector<uint8_t> & )> rcv_handler_t;
+
+void do_receive(boost::asio::ip::udp::socket & socket, std::vector<uint8_t> & buffer, rcv_handler_t & on_receive)
 {
     using namespace boost;
 
@@ -58,7 +59,7 @@ void do_receive(boost::asio::ip::udp::socket & socket, std::vector<uint8_t> & bu
             return;
         }
 
-        LOG_TRACE << "got udp packet. size = " << received;
+        LOG_DEBUG << "got udp packet. size = " << received;
         buffer.resize(received);
         on_receive(buffer);
         do_receive(socket, buffer, on_receive);
@@ -207,7 +208,7 @@ int main(int argc, const char ** argv)
     std::vector<uint8_t> socket_rx_buffer;
     std::deque<uint8_t> uplink_queue;
     bool io_stop_flag = false;
-    auto rcv_handler = [&](std::vector<uint8_t> & buffer){
+    rcv_handler_t rcv_handler = [&](std::vector<uint8_t> & buffer){
         std::copy(buffer.begin(), buffer.end(), std::back_inserter(uplink_queue));
     };
 
@@ -281,7 +282,6 @@ int main(int argc, const char ** argv)
 
     try
     {
-
         size_t ack_payloads_availible = 3; // можно класть не больше чем столькоs
         uint8_t rx_pipeno;
         while(!io_stop_flag) {
@@ -318,6 +318,7 @@ int main(int argc, const char ** argv)
 
             if (uplink_queue.size() && ack_payloads_availible > 0)
             {
+                LOG_DEBUG << "found uplink packet in queue";
                 size_t len = std::min(sizeof(uplink_buffer), uplink_queue.size());
                 auto copy_end = std::next(uplink_queue.begin(), len);
                 std::copy(uplink_queue.begin(), copy_end, std::begin(uplink_buffer));
