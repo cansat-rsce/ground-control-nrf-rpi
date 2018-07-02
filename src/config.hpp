@@ -26,6 +26,8 @@ namespace rscs { namespace gcs
             rf24_module_id_t module_id;
             std::string sh_mtx_name;
 
+            bool auto_ack;
+
             int address_width;
             int retries_delay;
             int retries_count;

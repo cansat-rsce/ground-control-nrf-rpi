@@ -18,6 +18,9 @@ namespace rscs { namespace gcs
         : _general_opts("general opts"), _rf_opts("rf24 opts"), _network_opts("network opts"), _log_opts("log opts")
     {
         _rf_opts.add_options()
+            ("auto-ack", po::value(&rf.auto_ack)->default_value(false),
+                    "enable auto ack")
+
             ("module-id", po::value(&rf.module_id)->required(),
                     "module id. values FIRST and SECOND")
 

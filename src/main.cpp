@@ -122,7 +122,16 @@ int main(int argc, const char ** argv)
         LOG_INFO << "shared mutex locked";
         radio->begin();
         radio->enableDynamicPayloads();
-        radio->enableAckPayload();
+        if (c.rf.auto_ack)
+        {
+            LOG_INFO << "ACKs enabled";
+            radio->enableAckPayload();
+        }
+        else
+        {
+            LOG_WARN << "acks disabled";
+            radio->setAutoAck(false);
+        }
 
         //radio->setChannel(NRF_CHANNEL);
         //radio->setAddressWidth(5);
@@ -339,14 +348,32 @@ int main(int argc, const char ** argv)
     }
     catch (std::exception & e)
     {
-        LOG_ERROR << "error in main loop";
+        LOG_ERROR << "error in main loop: " << e.what();
         io_stop_flag = true;
     }
 
+
     // ждем завешения всех асинхронных операций
-    socket.cancel();
-    signal_set.cancel();
+    boost::system::error_code err;
+    if (socket.is_open())
+    {
+        socket.cancel(err);
+        if (err)
+            LOG_ERROR << "socket cancel error: " << err << ":" << err.message();
+    }
+
+    err = boost::system::error_code();
+    signal_set.cancel(err);
+    if (err)
+        LOG_ERROR << "signal set error:" << err << ":" << err.message();
+
     io.run();
+
+    {
+        std::unique_lock<sh_mutex> lock(mtx);
+        radio->stopListening();
+        LOG_INFO << "radio stopped";
+    }
 
     LOG_INFO << "terminated gracefully";
     return EXIT_SUCCESS;
