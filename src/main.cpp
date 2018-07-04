@@ -300,8 +300,13 @@ int main(int argc, const char ** argv)
                     binlog_downlink.write((char*)downlink_buffer, len);
                     binlog_downlink.flush();
                     if (has_network)
-                        socket.send(asio::buffer(downlink_buffer, len));
+                    {
+                        system::error_code err;
+                        socket.send(asio::buffer(downlink_buffer, len), err);
+                        if (err)
+                            LOG_ERROR << "cant send data :" <<  err << ":" << err.message();
 
+                    }
                     // мы получили пакет, значит пайлоад ушел с ним. отражаем в счетчике
                     if (ack_payloads_availible++ > 3)
                         ack_payloads_availible = 3;
